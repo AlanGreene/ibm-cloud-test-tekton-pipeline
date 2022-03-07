@@ -1,0 +1,54 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: missing-param-task
+spec:
+  params:
+    - name: greeting
+  steps:
+    - name: echo
+      image: ubuntu
+      script: |
+        #!/usr/bin/env bash
+        echo $(params.greeting)
+---
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: staging-deployment-dry-run
+spec:
+  tasks:
+    - name: missing-param-task
+      taskRef:
+        name: missing-param-task
+---
+apiVersion: tekton.dev/v1alpha1
+kind: TriggerTemplate
+metadata:
+  name: missing-param-pipeline-template
+spec:
+  resourcetemplates:
+    - apiVersion: tekton.dev/v1beta1
+      kind: PipelineRun
+      metadata:
+        name: pipelinerun-with-taskspec-to-echo-good-morning
+      spec:
+        pipelineRef:
+          name: staging-deployment-dry-run
+---
+apiVersion: tekton.dev/v1alpha1
+kind: TriggerBinding
+metadata:
+  name: manual-missing-param-pipeline-binding
+spec:
+---
+apiVersion: tekton.dev/v1alpha1
+kind: EventListener
+metadata:
+  name: manual-missing-param-listener
+spec:
+  triggers:
+    - binding:
+        name: manual-missing-param-pipeline-binding
+      template:
+        name: missing-param-pipeline-template

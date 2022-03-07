@@ -1,0 +1,53 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: sleep-task
+spec:
+  steps:
+  - name: sleep
+    image: ubuntu
+    script: |
+      #!/usr/bin/env bash
+      sleep infinity
+      # tail -f /dev/null
+---
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: sleep-pipeline
+spec:
+  tasks:
+    - name: sleep-task
+      taskRef:
+        name: sleep-task
+---
+apiVersion: tekton.dev/v1alpha1
+kind: TriggerTemplate
+metadata:
+  name: sleep-pipeline-template
+spec:
+  resourcetemplates:
+    - apiVersion: tekton.dev/v1beta1
+      kind: PipelineRun
+      metadata:
+        generateName: sleep-run-
+      spec:
+        pipelineRef:
+          name: sleep-pipeline
+---
+apiVersion: tekton.dev/v1alpha1
+kind: TriggerBinding
+metadata:
+  name: manual-sleep-pipeline-binding
+spec:
+---
+apiVersion: tekton.dev/v1alpha1
+kind: EventListener
+metadata:
+  name: manual-sleep-listener
+spec:
+  triggers:
+    - binding:
+        name: manual-sleep-pipeline-binding
+      template:
+        name: sleep-pipeline-template

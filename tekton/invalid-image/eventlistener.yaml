@@ -1,0 +1,52 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: invalid-image-task
+spec:
+  steps:
+    - name: echo
+      image: this-image-does-not-exist:03b5506c
+      script: |
+        #!/usr/bin/env bash
+        echo "Good Morning!"
+---
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: ci-tests
+spec:
+  tasks:
+    - name: invalid-image-task
+      taskRef:
+        name: invalid-image-task
+---
+apiVersion: tekton.dev/v1alpha1
+kind: TriggerTemplate
+metadata:
+  name: invalid-image-pipeline-template
+spec:
+  resourcetemplates:
+    - apiVersion: tekton.dev/v1beta1
+      kind: PipelineRun
+      metadata:
+        generateName: pipelinerun-with-taskspec-
+      spec:
+        pipelineRef:
+          name: ci-tests
+---
+apiVersion: tekton.dev/v1alpha1
+kind: TriggerBinding
+metadata:
+  name: manual-invalid-image-pipeline-binding
+spec:
+---
+apiVersion: tekton.dev/v1alpha1
+kind: EventListener
+metadata:
+  name: manual-invalid-image-listener
+spec:
+  triggers:
+    - binding:
+        name: manual-invalid-image-pipeline-binding
+      template:
+        name: invalid-image-pipeline-template

@@ -1,0 +1,177 @@
+apiVersion: tekton.dev/v1alpha1
+kind: TriggerTemplate
+metadata:
+  name: when-expressions-template
+spec:
+  resourcetemplates:
+    - apiVersion: tekton.dev/v1beta1
+      kind: PipelineRun
+      metadata:
+        generateName: guarded-pr-
+      spec:
+        pipelineSpec:
+          params:
+            - name: path
+              type: string
+              description: The path of the file to be created
+          tasks:
+            - name: create-file # when expression using parameter, evaluates to true
+              taskSpec:
+                steps:
+                  - name: write-new-stuff
+                    image: ubuntu
+                    script: |
+                      #!/usr/bin/env bash
+                      echo "create file at /some/path/README.md"
+                      sleep 5
+            - name: check-file
+              params:
+                - name: path
+                  value: "$(params.path)"
+              runAfter:
+                - create-file
+              taskSpec:
+                params:
+                  - name: path
+                steps:
+                  - name: check-file
+                    image: alpine
+                    script: |
+                      #!/usr/bin/env sh
+                      printf yes | tee /tekton/results/exists
+                      sleep 5
+            - name: echo-file-exists # when expression using task result, evaluates to true
+              when:
+                - input: "$(tasks.check-file.results.exists)"
+                  operator: in
+                  values: ["yes"]
+              taskSpec:
+                steps:
+                  - name: echo
+                    image: ubuntu
+                    script: |
+                      #!/usr/bin/env bash
+                      echo file exists
+                      sleep 5
+            - name: task-should-be-skipped-1
+              when:
+                - input: "$(tasks.check-file.results.exists)" # when expression using task result, evaluates to false
+                  operator: in
+                  values: ["missing"]
+              taskSpec:
+                steps:
+                  - name: echo
+                    image: ubuntu
+                    script: exit 1
+            # - name: task-should-be-skipped-2 # when expression using parameter, evaluates to false
+            #   when:
+            #     - input: "$(params.path)"
+            #       operator: notin
+            #       values: ["README.md"]
+            #   taskSpec:
+            #     steps:
+            #       - name: echo
+            #         image: ubuntu
+            #         script: exit 1
+            - name: task-should-be-skipped-3 # task with when expression and run after
+              runAfter:
+                - echo-file-exists
+              when:
+                - input: "monday"
+                  operator: in
+                  values: ["friday"]
+              taskSpec:
+                steps:
+                  - name: echo
+                    image: ubuntu
+                    script: exit 1
+          finally:
+            - name: finally-task-should-be-skipped-1 # when expression using execution status, evaluates to false
+              when:
+                - input: "$(tasks.echo-file-exists.status)"
+                  operator: in
+                  values: ["Failure"]
+              taskSpec:
+                steps:
+                  - name: echo
+                    image: ubuntu
+                    script: exit 1
+            - name: finally-task-should-be-skipped-2 # when expression using task result, evaluates to false
+              when:
+                - input: "$(tasks.check-file.results.exists)"
+                  operator: in
+                  values: ["missing"]
+              taskSpec:
+                steps:
+                  - name: echo
+                    image: ubuntu
+                    script: exit 1
+            # - name: finally-task-should-be-skipped-3 # when expression using parameter, evaluates to false
+            #   when:
+            #     - input: "$(params.path)"
+            #       operator: notin
+            #       values: ["README.md"]
+            #   taskSpec:
+            #     steps:
+            #       - name: echo
+            #         image: ubuntu
+            #         script: exit 1
+            - name: finally-task-should-be-skipped-4 # when expression using tasks execution status, evaluates to false
+              when:
+                - input: "$(tasks.status)"
+                  operator: in
+                  values: ["Failure"]
+              taskSpec:
+                steps:
+                  - name: echo
+                    image: ubuntu
+                    script: exit 1
+            - name: finally-task-should-be-skipped-5 # when expression using tasks execution status, evaluates to false
+              when:
+                - input: "$(tasks.status)"
+                  operator: in
+                  values: ["Succeeded"]
+              taskSpec:
+                steps:
+                  - name: echo
+                    image: ubuntu
+                    script: exit 1
+            - name: finally-task-should-be-executed # when expression using execution status, tasks execution status, param, and results
+              when:
+                - input: "$(tasks.echo-file-exists.status)"
+                  operator: in
+                  values: ["Succeeded"]
+                - input: "$(tasks.status)"
+                  operator: in
+                  values: ["Completed"]
+                - input: "$(tasks.check-file.results.exists)"
+                  operator: in
+                  values: ["yes"]
+                - input: "$(params.path)"
+                  operator: in
+                  values: ["README.md"]
+              taskSpec:
+                steps:
+                  - name: echo
+                    image: ubuntu
+                    script: 'echo finally done'
+        params:
+          - name: path
+            value: README.md
+---
+apiVersion: tekton.dev/v1alpha1
+kind: TriggerBinding
+metadata:
+  name: manual-when-expressions-binding
+spec:
+---
+apiVersion: tekton.dev/v1alpha1
+kind: EventListener
+metadata:
+  name: manual-when-expressions-listener
+spec:
+  triggers:
+    - binding:
+        name: manual-when-expressions-binding
+      template:
+        name: when-expressions-template

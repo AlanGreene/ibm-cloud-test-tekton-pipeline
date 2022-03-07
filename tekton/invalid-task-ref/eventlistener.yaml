@@ -1,0 +1,41 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: preprod-status-check
+spec:
+  tasks:
+    - name: test-missing-task
+      taskRef:
+        name: test-missing-task
+---
+apiVersion: tekton.dev/v1alpha1
+kind: TriggerTemplate
+metadata:
+  name: missing-task-pipeline-template
+spec:
+  resourcetemplates:
+    - apiVersion: tekton.dev/v1beta1
+      kind: PipelineRun
+      metadata:
+        generateName: preprod-status-pr-
+      spec:
+        pipelineRef:
+            name: preprod-status-check
+        serviceAccount: 'default'
+---
+apiVersion: tekton.dev/v1alpha1
+kind: TriggerBinding
+metadata:
+  name: manual-missing-task-pipeline-binding
+spec:
+---
+apiVersion: tekton.dev/v1alpha1
+kind: EventListener
+metadata:
+  name: manual-missing-task-listener
+spec:
+  triggers:
+    - binding:
+        name: manual-missing-task-pipeline-binding
+      template:
+        name: missing-task-pipeline-template
